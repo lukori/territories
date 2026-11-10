@@ -1,0 +1,357 @@
+<title>to boldly go · טריטוריות</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&family=Inter:wght@400;600&family=Abril+Fatface&display=swap">
+<style>
+/* Layout: a Miro-style dotted board laid on the floor of a 3D room; clusters float above it on the playfulness (Z) axis. Single light "whiteboard" look by choice. */
+:root{
+  --board:#eef0f3; --dot:#c9ced6; --ink:#1c1d22; --muted:#6b7080; --paper:#ffffff;
+  --sticky:#fff4a3; --accent:#3557ff;
+  --play-red:#c8161d; --play-orange:#ff9e44; --play-yellow:#ffd83a;
+  --ui:#ffffff; --ui-line:#e1e4ea;
+  --f-he:"Heebo",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  --f-lat:"Inter",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  --f-fun:"Abril Fatface",Georgia,serif;
+  color-scheme:light;
+}
+html,body{height:100%}
+body{margin:0;background:var(--board);color:var(--ink);font-family:var(--f-he);overflow:hidden;-webkit-font-smoothing:antialiased}
+#stage{position:fixed;inset:0;perspective:2200px;perspective-origin:50% 45%;cursor:grab;touch-action:none;overflow:hidden;background:var(--board)}
+#stage{user-select:none;-webkit-user-select:none}
+#stage img{-webkit-user-drag:none;pointer-events:none}
+#stage.dragging{cursor:grabbing}
+#stage.orbit{cursor:move}
+#world{position:absolute;left:0;top:0;width:0;height:0;transform-style:preserve-3d;will-change:transform}
+.p{position:absolute;left:0;top:0;transform-style:preserve-3d}
+
+/* floor */
+#floor{width:3400px;height:3000px;margin:-1500px 0 0 -1700px;
+  background-color:var(--board);
+  background-image:radial-gradient(var(--dot) 1.4px,transparent 1.6px);
+  background-size:28px 28px;border-radius:24px;
+  box-shadow:0 0 0 1px rgba(28,29,34,.04)}
+.axis{position:absolute;border-color:var(--ink);opacity:.75}
+#ax-x{width:2700px;height:0;border-top:5px dashed;margin:-2px 0 0 -1350px}
+#ax-y{height:2500px;width:0;border-left:5px dashed;margin:-1250px 0 0 -2px}
+.fl{transform:translate3d(var(--x),var(--y),1px)}
+.fl.up{transform:translate3d(var(--x),var(--y),1px) rotateZ(calc(-1 * var(--yaw))) rotateX(-90deg)}
+.floor-label{position:absolute;font:500 64px/1 var(--f-he);color:var(--ink);white-space:nowrap;transform:translate(-50%,-50%)}
+.fl.up .floor-label{transform:translate(-50%,-100%);padding-bottom:6px}
+
+/* z pole */
+#pole{width:0;height:1780px;border-left:5px dashed var(--ink);transform-origin:0 0;transform:rotateX(90deg);margin-left:-2px;opacity:.8}
+.ring{width:34px;height:34px;border-radius:50%;border:3px solid var(--ink);margin:-17px 0 0 -17px;box-sizing:border-box}
+
+/* billboards: always face the camera */
+.bb{transform:translate3d(var(--x),var(--y),var(--z)) rotateZ(calc(-1 * var(--yaw))) rotateX(calc(-1 * var(--pitch)))}
+.bb > .inner{position:absolute;left:0;top:0;transform:translate(-50%,-100%) scale(1.35);transform-origin:50% 100%}
+.z-label{font:500 47.4px/1 var(--f-he);background:transparent;color:var(--ink);border:3.7px solid var(--ink);padding:10px 18px 12px;border-radius:14px;white-space:nowrap}
+.z-label small{display:block;font:500 18px/1.3 var(--f-he);opacity:.75;margin-top:6px}
+
+/* stems + footprints */
+.stem{width:0;border-left:3px dashed var(--ink);opacity:.45;transform-origin:0 0;transform:rotateX(90deg);margin-left:-1px}
+.foot{width:46px;height:46px;border-radius:50%;margin:-23px 0 0 -23px;border:3px solid var(--ink);box-sizing:border-box;opacity:.9}
+.shadow{width:420px;height:150px;margin:-75px 0 0 -210px;border-radius:50%;background:radial-gradient(closest-side,rgba(28,29,34,.16),transparent)}
+
+/* clusters */
+.cluster{width:560px;padding:18px 18px 30px;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;justify-content:center;position:relative}
+.cluster::after{content:"";position:absolute;left:50%;bottom:0;width:0;height:30px;border-left:3px dashed rgba(28,29,34,.45)}
+.sticky{flex:0 0 auto;background:var(--sticky);padding:16px 18px;min-width:120px;max-width:200px;text-align:center;font:500 22px/1.25 var(--f-he);box-shadow:0 8px 14px -8px rgba(0,0,0,.35);transform:rotate(-1.5deg)}
+.sticky.lat{font-family:var(--f-lat);font-weight:600}
+.fun{font:400 40px/1 var(--f-fun);text-align:center;padding:8px 6px;align-self:center}
+.item{flex:0 0 auto;background:var(--paper);border-radius:8px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.08),0 10px 20px -12px rgba(0,0,0,.35);cursor:pointer;position:relative;transition:transform .15s ease,box-shadow .15s ease;text-decoration:none;color:inherit;display:block}
+.item:hover,.item:focus-visible{transform:translateY(-4px);box-shadow:0 0 0 3px var(--accent),0 16px 26px -14px rgba(0,0,0,.4);outline:none}
+.item img{display:block;width:100%;height:auto;max-width:none}
+.photo{width:220px}
+.photo.sm{width:150px}
+.photo.tall{width:120px}
+.doc{width:130px;border:1px solid var(--ui-line)}
+.card{width:200px;direction:ltr;text-align:left}
+.card .meta{padding:10px 12px 14px;font-family:var(--f-lat)}
+.card .src{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.card .src i{width:12px;height:12px;border-radius:3px;background:var(--ink);display:inline-block}
+.card h3{font:600 14px/1.25 var(--f-lat);margin:6px 0 4px;text-wrap:balance}
+.card p{font-size:11.5px;line-height:1.4;color:var(--muted);margin:0}
+.badge{position:absolute;top:8px;right:8px;background:rgba(28,29,34,.78);color:#fff;font:600 11px/1 var(--f-lat);padding:5px 7px;border-radius:5px;direction:ltr}
+.play::before{content:"";position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(28,29,34,.7);box-shadow:0 0 0 3px rgba(255,255,255,.85)}
+.play::after{content:"";position:absolute;left:50%;top:50%;margin:-9px 0 0 -5px;border-left:16px solid #fff;border-top:9px solid transparent;border-bottom:9px solid transparent}
+.logo-tile{width:150px;border-radius:4px}
+
+/* UI chrome */
+.chrome{position:fixed;z-index:20;background:var(--ui);border-radius:10px;box-shadow:0 2px 10px rgba(20,24,40,.12);display:flex;align-items:center;gap:6px}
+#top{top:calc(12px + env(safe-area-inset-top,0px));right:max(12px,env(safe-area-inset-right,0px));padding:8px 14px;gap:10px;max-width:calc(100vw - 32px)}
+#top h1{font:800 17px/1.2 var(--f-he);margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#top a{font:500 13px/1 var(--f-he);color:var(--accent);text-decoration:none;white-space:nowrap}
+#tools{top:50%;right:max(12px,env(safe-area-inset-right,0px));transform:translateY(-50%);flex-direction:column;padding:6px}
+#zoom{bottom:calc(12px + env(safe-area-inset-bottom,0px));right:max(12px,env(safe-area-inset-right,0px));padding:4px 6px}
+#zoom output{min-width:52px;text-align:center;font:500 13px/1 var(--f-lat);font-variant-numeric:tabular-nums}
+button.t{all:unset;box-sizing:border-box;min-width:40px;height:40px;padding:0 10px;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font:500 13px/1 var(--f-he);color:var(--ink);cursor:pointer;white-space:nowrap}
+button.t:hover{background:#f0f2f6}
+button.t[aria-pressed="true"]{background:#e6ebff;color:var(--accent)}
+button.t:focus-visible{box-shadow:0 0 0 2px var(--accent)}
+button.t svg{width:20px;height:20px;flex:none}
+.sep{width:28px;height:1px;background:var(--ui-line);margin:4px auto}
+#zoom .sep{width:1px;height:24px;margin:0 2px}
+
+#panel{bottom:calc(12px + env(safe-area-inset-bottom,0px));left:max(12px,env(safe-area-inset-left,0px));flex-direction:column;align-items:stretch;padding:6px;width:auto;max-width:210px;gap:0;max-height:calc(100% - 120px);overflow:auto}
+#panel h2{font:700 13px/1 var(--f-he);margin:0;letter-spacing:.02em;color:var(--muted)}
+.key{display:grid;grid-template-columns:22px 1fr;gap:6px 8px;align-items:center;font-size:13px}
+.key span.c{width:18px;height:18px;border-radius:50%;border:2px solid var(--ink);box-sizing:border-box}
+#jump{display:flex;flex-direction:column;gap:2px}
+#jump button{all:unset;cursor:pointer;display:block;padding:5px 8px;border-radius:6px;font-size:12px;line-height:1.3}
+#jump button:hover,#jump button:focus-visible{background:#f0f2f6}
+#panel .hint{font-size:12px;line-height:1.5;color:var(--muted);border-top:1px solid var(--ui-line);padding-top:8px}
+#panelHead{display:none}
+
+/* lightbox */
+#lb{position:fixed;inset:0;z-index:40;background:rgba(18,19,24,.78);display:flex;align-items:center;justify-content:center;padding:24px max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px))}
+#lb[hidden]{display:none}
+#lb figure{margin:0;max-width:min(900px,100%);background:var(--paper);border-radius:12px;overflow:hidden;box-shadow:0 30px 60px rgba(0,0,0,.4)}
+#lb img{display:block;width:100%;max-height:70vh;object-fit:contain;background:#111}
+#lb figcaption{padding:12px 16px;display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:14px;flex-wrap:wrap}
+#lb a{color:var(--accent);font-weight:500}
+#lb .note{color:var(--muted);font-size:12.5px}
+#lbClose{all:unset;cursor:pointer;font:500 14px var(--f-he);padding:6px 10px;border-radius:6px;background:#f0f2f6}
+
+@media (max-width:640px){
+  #panel{width:auto;right:max(12px,env(safe-area-inset-right,0px));bottom:calc(64px + env(safe-area-inset-bottom,0px))}
+  #panel:not(.open) > :not(#panelHead){display:none}
+  #panelHead{display:flex}#panel.open #panelHead{border-bottom:1px solid var(--ui-line);margin-bottom:4px}
+  #panel{max-width:none}
+  #top a{display:none}
+}
+@media (prefers-reduced-motion:reduce){.item{transition:none}}
+</style>
+
+<div id="stage" aria-label="לוח תלת-ממדי">
+  <div id="world"></div>
+</div>
+
+<header class="chrome" id="top" dir="rtl">
+  <h1>to boldly go · טריטוריות</h1>
+  <a href="https://miro.com/app/board/uXjVEPpf-q8=/" target="_blank" rel="noopener">ללוח במירו ↗</a>
+</header>
+
+<nav class="chrome" id="tools" dir="rtl" aria-label="כלים">
+  <button class="t" id="toolPan" aria-pressed="true" title="הזזה (H)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12M11 11.5V4a1.5 1.5 0 0 1 3 0v8M14 11.5V5.5a1.5 1.5 0 0 1 3 0V13M17 9.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-2a6 6 0 0 1-4.8-2.4L4.5 15a1.6 1.6 0 0 1 2.4-2.1L8 14"/></svg>
+  </button>
+  <button class="t" id="toolOrbit" aria-pressed="false" title="סיבוב במרחב (R)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="12" rx="9" ry="4"/><path d="M12 3v18"/><path d="M18.5 7.5 21 8l-.5 2.5"/></svg>
+  </button>
+  <div class="sep"></div>
+  <button class="t" id="viewTop" title="מבט מלמעלה, כמו במירו">2D</button>
+  <button class="t" id="view3d" title="מבט תלת-ממדי">3D</button>
+</nav>
+
+<div class="chrome" id="zoom" dir="ltr">
+  <button class="t" id="zOut" aria-label="הקטנה">−</button>
+  <output id="zVal">40%</output>
+  <button class="t" id="zIn" aria-label="הגדלה">+</button>
+  <div class="sep"></div>
+  <button class="t" id="fit" title="הצג הכל" aria-label="הצג הכל">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+  </button>
+</div>
+
+<aside class="chrome" id="panel" dir="rtl">
+  <div id="panelHead"><button class="t" id="panelToggle" aria-expanded="false">אשכולות</button></div>
+  <div id="jump"></div>
+</aside>
+
+<div id="lb" hidden role="dialog" aria-modal="true" aria-label="תצוגה מוגדלת">
+  <figure>
+    <img id="lbImg" alt="">
+    <figcaption dir="rtl"><span id="lbCap"></span><span id="lbLink"></span><button id="lbClose">סגירה</button></figcaption>
+  </figure>
+</div>
+
+<script>
+const PLAY = {red:{z:700,c:'var(--play-red)'},orange:{z:380,c:'var(--play-orange)'},yellow:{z:70,c:'var(--play-yellow)'}};
+// x: digital(-) → physical(+); y: research(+) → applied(-). Positions follow the Miro quadrant.
+const CLUSTERS = [
+ {id:'superpowers',label:'AI Superpowers',lat:true,x:520,y:990,play:'orange',items:[
+   {t:'photo',img:'img/superpowers1.jpg',cap:'Animal Superpowers, Chris Woebken'},
+   {t:'card',img:'img/superpowers3.jpg',src:'Chris Woebken',title:'Animal Superpowers – Chris Woebken',desc:'Animal Superpowers, 2007–present. Ongoing series of five device designs; wearable devices that invite children to experience animal senses.',href:'https://expandedenvironment.org/animal-superpowers'},
+   {t:'photo',img:'img/superpowers2.jpg',cap:'Animal Superpowers'}]},
+ {id:'layers',label:'שכבות',x:1010,y:540,play:'orange',items:[
+   {t:'logo',img:'img/radiolab.jpg',cap:'Radiolab',href:'https://radiolab.org/podcast/91908-stayin-alive/transcript'},
+   {t:'card',img:'img/amphorae.jpg',src:'Radiolab Podcasts | WNYC Studios',title:"Stayin' Alive – Transcript",desc:'A look at four unconventional ways to stay alive.',href:'https://radiolab.org/podcast/91908-stayin-alive/transcript'},
+   {t:'doc',img:'img/archaeo1.jpg',cap:'Archaeoacoustics – pipe dream or possibility? (Phonograph Makers\' Pages), עמ׳ 1'},
+   {t:'doc',img:'img/archaeo2.jpg',cap:'Archaeoacoustics, עמ׳ 2'},
+   {t:'video',img:'img/img2103.jpg',cap:'IMG 2103 · YouTube (lukoor)',badge:'YouTube'},
+   {t:'photo',img:'img/boards.jpg',cap:'לוחות עם רכיבים'}]},
+ {id:'analog',label:'אנלוגיטלי',x:310,y:450,play:'yellow',items:[
+   {t:'video',img:'img/analog1.jpg',cap:'וידאו: מקרן בחלל חשוך',badge:'וידאו',cls:'sm'},
+   {t:'video',img:'img/analog2.jpg',cap:'וידאו: חלל תת-קרקעי',badge:'וידאו',cls:'sm'},
+   {t:'video',img:'img/analog3.jpg',cap:'וידאו: מסדרון',badge:'וידאו',cls:'tall'}]},
+ {id:'nonverbal',label:'תקשורת לא מילולית',x:-920,y:720,play:'orange',items:[
+   {t:'photo',img:'img/chat.jpg',cap:'צילום מסך: שיחה',cls:'wide'},
+   {t:'card',img:'img/facemusic.jpg',src:'Pentagram',title:'Face the Music',desc:'Pentagram’s interactive 2019 holiday card lets you make music with your face.',href:'https://www.pentagram.com/work/face-the-music'},
+   {t:'fun',text:'smile text :)'}]},
+ {id:'immersive',label:'משחק אימרסיבי',x:-440,y:150,play:'red',items:[
+   {t:'card',img:'img/lego.jpg',src:'LEGO',title:'LEGO® SMART Play™ System',desc:'Introducing the LEGO SMART Play system, made with the creativity of kids in mind.',href:'https://www.lego.com/en-il/smart-play'},
+   {t:'card',img:'img/arches.jpg',src:'Lukori',title:'Arches 3D',desc:'הקישור המקורי נמצא בלוח המירו.'}]},
+ {id:'cocreation',label:'co-creation · AI-(co)-PLAY',lat:true,x:-740,y:-540,play:'red',items:[
+   {t:'card',img:'img/automatar.jpg',src:'LinkedIn · MIT Media Lab',title:'The Automatar: An AI-Powered Acoustic Guitar',desc:'MIT Media Lab introduces the Automatar, crafted entirely from scratch.',href:'https://www.media.mit.edu/projects/automatar/overview/'},
+   {t:'photo',img:'img/lk_book.jpg',cap:'Lifelong Kindergarten, Mitchel Resnick',href:'https://www.media.mit.edu/groups/lifelong-kindergarten/overview/'},
+   {t:'card',img:'img/lk_podcast.jpg',src:'MIT Media Lab',title:'Project Overview ‹ Lifelong Kindergarten',desc:'Join MIT Professor Mitchel Resnick to explore new technologies, activities and strategies for creative learning.',href:'https://www.media.mit.edu/groups/lifelong-kindergarten/overview/'},
+   {t:'card',img:'img/doodle.jpg',src:'Lukori',title:'Doodle Animator',href:'https://lukori.github.io/emotionizer/'}]},
+];
+
+const world=document.getElementById('world'), stage=document.getElementById('stage');
+const el=(tag,cls,html)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;return e};
+const place=(e,x,y,z=0)=>{e.style.transform=`translate3d(${x}px,${y}px,${z}px)`+(e.dataset.extra||'');return e};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// floor + axes
+const floor=place(el('div','p'),0,0,-1); floor.id='floor'; world.append(floor);
+const ax=el('div','p');place(ax,0,0,0);ax.innerHTML='<div class="axis" id="ax-x"></div><div class="axis" id="ax-y"></div>';world.append(ax);
+[['מחקרי',0,-1330],['יישומי',0,1330],['דיגיטלי',-1480,0],['פיזי',1430,0]].forEach(([t,x,y])=>{const l=el('div','p fl');l.style.cssText+=`--x:${x}px;--y:${y}px`;l.innerHTML=`<div class="floor-label">${t}</div>`;world.append(l)});
+
+// z pole with colour rings
+const pole=place(el('div','p'),0,0,0);pole.innerHTML='<div id="pole"></div>';world.append(pole);
+Object.values(PLAY).forEach(p=>{const r=el('div','p bb');r.style.cssText+=`--x:0px;--y:0px;--z:${p.z}px`;r.innerHTML=`<div class="inner" style="transform:translate(-50%,-50%)"><div class="ring" style="background:${p.c};margin:0"></div></div>`;world.append(r)});
+const zl=el('div','p bb');zl.style.cssText+='--x:0px;--y:0px;--z:1800px';zl.innerHTML='<div class="inner"><div class="z-label">משחקי ↑</div></div>';world.append(zl);
+
+// clusters
+const jump=document.getElementById('jump');
+function itemHTML(it){
+  const link=it.href?` href="${esc(it.href)}" target="_blank" rel="noopener"`:'';
+  if(it.t==='fun') return `<div class="fun" dir="ltr">${esc(it.text)}</div>`;
+  if(it.t==='card'){
+    return `<a class="item card"${link} data-img="${esc(it.img)}" data-cap="${esc(it.title)}" data-href="${esc(it.href||'')}" tabindex="0">
+      <img src="${esc(it.img)}" alt="${esc(it.title)}" loading="lazy">
+      <div class="meta"><div class="src"><i></i>${esc(it.src)}</div><h3>${esc(it.title)}</h3><p>${esc(it.desc)}</p></div></a>`;
+  }
+  const cls={photo:'photo',video:'photo play',doc:'doc',logo:'logo-tile'}[it.t]+(it.cls?' '+it.cls:'');
+  const style=it.cls==='wide'?' style="width:300px"':'';
+  return `<div class="item ${cls}"${style} role="button" tabindex="0" data-img="${esc(it.img)}" data-cap="${esc(it.cap)}" data-href="${esc(it.href||'')}" data-video="${it.t==='video'?1:''}">
+    <img src="${esc(it.img)}" alt="${esc(it.cap)}" loading="lazy">${it.badge?`<span class="badge">${esc(it.badge)}</span>`:''}</div>`;
+}
+CLUSTERS.forEach(c=>{
+  const p=PLAY[c.play], X=c.x, Y=-c.y;
+  const sh=place(el('div','p'),X,Y,0.5);sh.innerHTML='<div class="shadow"></div>';world.append(sh);
+  const ft=place(el('div','p'),X,Y,1);ft.innerHTML=`<div class="foot" style="background:${p.c}"></div>`;world.append(ft);
+  const st=place(el('div','p'),X,Y,0);st.innerHTML=`<div class="stem" style="height:${p.z}px"></div>`;world.append(st);
+  const b=el('div','p bb');b.style.cssText+=`--x:${X}px;--y:${Y}px;--z:${p.z}px`;
+  const stickies=c.label.split(' · ').map(s=>`<div class="sticky${c.lat?' lat':''}" dir="auto">${esc(s)}</div>`).join('');
+  b.innerHTML=`<div class="inner"><div class="cluster" dir="rtl">${stickies}${c.items.map(itemHTML).join('')}</div></div>`;
+  world.append(b);
+  const j=el('button');j.textContent=c.label;j.onclick=()=>flyTo(X,Y,p.z);jump.append(j);
+});
+
+// ---------- camera ----------
+const cam={cx:0,cy:-120,cz:260,s:.36,pitch:56,yaw:-22};
+let target=null;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function render(){
+  const W=stage.clientWidth,H=stage.clientHeight;
+  world.style.setProperty('--yaw',cam.yaw+'deg');world.style.setProperty('--pitch',cam.pitch+'deg');
+  world.style.transform=`translate(${W/2}px,${H*0.5}px) scale3d(${cam.s},${cam.s},${cam.s}) rotateX(${cam.pitch}deg) rotateZ(${cam.yaw}deg) translate3d(${-cam.cx}px,${-cam.cy}px,${-cam.cz}px)`;
+  const yn=Math.abs((((cam.yaw%360)+540)%360)-180), up=cam.pitch>35||yn>50;
+  if(up!==render.up){render.up=up;document.querySelectorAll('.fl').forEach(f=>f.classList.toggle('up',up))}
+  document.getElementById('zVal').textContent=Math.round(cam.s*100)+'%';
+}
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function tick(){
+  if(target){
+    const k=reduce?1:.14;let done=true;
+    for(const key in target){const d=target[key]-cam[key];cam[key]+=d*k;if(Math.abs(d)>.05)done=false;}
+    if(done){Object.assign(cam,target);target=null}
+    render();
+  }
+  requestAnimationFrame(tick);
+}
+function go(t){target=Object.assign({},target||{},t)}
+function flyTo(x,y,z){go({cx:x,cy:y,cz:z,s:Math.max(cam.s,.85)})}
+function screenToGround(dx,dy){
+  const yr=cam.yaw*Math.PI/180, pc=Math.max(.25,Math.cos(cam.pitch*Math.PI/180));
+  const ux=dx/cam.s, uy=dy/cam.s/pc;
+  return [ux*Math.cos(yr)+uy*Math.sin(yr), -ux*Math.sin(yr)+uy*Math.cos(yr)];
+}
+
+// pointer handling
+let mode='pan', drag=null; const pts=new Map();
+const toolPan=document.getElementById('toolPan'), toolOrbit=document.getElementById('toolOrbit');
+function setMode(m){mode=m;toolPan.setAttribute('aria-pressed',m==='pan');toolOrbit.setAttribute('aria-pressed',m==='orbit');stage.classList.toggle('orbit',m==='orbit')}
+toolPan.onclick=()=>setMode('pan');toolOrbit.onclick=()=>setMode('orbit');
+stage.addEventListener('contextmenu',e=>e.preventDefault());
+stage.addEventListener('pointerdown',e=>{
+  pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pts.size===2){const [a,b]=[...pts.values()];drag={pinch:Math.hypot(a.x-b.x,a.y-b.y),s:cam.s,mx:(a.x+b.x)/2,my:(a.y+b.y)/2};return}
+  const orbit=mode==='orbit'||e.button===2||e.shiftKey||e.altKey;
+  drag={x:e.clientX,y:e.clientY,orbit,moved:false,startEl:e.target.closest('.item')};
+  target=null;
+});
+stage.addEventListener('pointermove',e=>{
+  if(!pts.has(e.pointerId)||!drag)return;
+  pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(drag.pinch){const [a,b]=[...pts.values()];const d=Math.hypot(a.x-b.x,a.y-b.y);cam.s=clamp(drag.s*d/drag.pinch,.12,2.4);
+    const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;const [gx,gy]=screenToGround(mx-drag.mx,my-drag.my);cam.cx-=gx;cam.cy-=gy;drag.mx=mx;drag.my=my;render();return}
+  const dx=e.clientX-drag.x, dy=e.clientY-drag.y;
+  if(!drag.moved&&Math.hypot(dx,dy)<5)return;
+  if(!drag.moved){drag.moved=true;stage.setPointerCapture(e.pointerId);stage.classList.add('dragging')}
+  drag.x=e.clientX;drag.y=e.clientY;
+  if(drag.orbit){cam.yaw-=dx*.3;cam.pitch=clamp(cam.pitch-dy*.3,0,80)}
+  else{const [gx,gy]=screenToGround(dx,dy);cam.cx-=gx;cam.cy-=gy}
+  render();
+});
+function endPtr(e){
+  pts.delete(e.pointerId);
+  if(drag&&!drag.pinch&&!drag.moved&&drag.startEl&&pts.size===0)openItem(drag.startEl);
+  if(pts.size===0){drag=null;stage.classList.remove('dragging')}
+  else if(drag&&drag.pinch){drag=null}
+}
+stage.addEventListener('pointerup',endPtr);stage.addEventListener('pointercancel',endPtr);
+stage.addEventListener('click',e=>{if(e.target.closest('a.item'))e.preventDefault()});
+stage.addEventListener('wheel',e=>{
+  e.preventDefault();target=null;
+  if(e.shiftKey&&!e.ctrlKey){cam.yaw-=(e.deltaX||e.deltaY)*.15;render();return}
+  const f=Math.exp(-e.deltaY*(e.ctrlKey?.01:.0015));
+  const ns=clamp(cam.s*f,.12,2.4);
+  const W=stage.clientWidth,H=stage.clientHeight;
+  const [gx,gy]=screenToGround(e.clientX-W/2,e.clientY-H/2);
+  const r=1-cam.s/ns;cam.cx+=gx*r;cam.cy+=gy*r;cam.s=ns;render();
+},{passive:false});
+
+// keyboard: open focused item, arrows pan, keys switch tools
+stage.addEventListener('keydown',e=>{const it=e.target.closest&&e.target.closest('.item');if(it&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openItem(it)}});
+addEventListener('keydown',e=>{
+  if(!lb.hidden){if(e.key==='Escape')closeLb();return}
+  const k=e.key, step=60/cam.s;
+  if(k==='h'||k==='H')setMode('pan');else if(k==='r'||k==='R')setMode('orbit');
+  else if(k==='ArrowLeft'){go({cx:cam.cx-step})}else if(k==='ArrowRight'){go({cx:cam.cx+step})}
+  else if(k==='ArrowUp'){go({cy:cam.cy-step})}else if(k==='ArrowDown'){go({cy:cam.cy+step})}
+  else if(k==='+'||k==='='){go({s:clamp(cam.s*1.25,.12,2.4)})}else if(k==='-'){go({s:clamp(cam.s/1.25,.12,2.4)})}
+});
+
+document.getElementById('zIn').onclick=()=>go({s:clamp(cam.s*1.25,.12,2.4)});
+document.getElementById('zOut').onclick=()=>go({s:clamp(cam.s/1.25,.12,2.4)});
+const fitView=()=>{const W=stage.clientWidth;go({cx:0,cy:-120,cz:260,s:clamp(W/3400,.16,.4)})};
+document.getElementById('fit').onclick=fitView;
+document.getElementById('viewTop').onclick=()=>go({pitch:0,yaw:0});
+document.getElementById('view3d').onclick=()=>go({pitch:56,yaw:-22});
+const panel=document.getElementById('panel'),pt=document.getElementById('panelToggle');
+pt.onclick=()=>{const o=panel.classList.toggle('open');pt.setAttribute('aria-expanded',o)};
+
+// lightbox
+const lb=document.getElementById('lb');
+function openItem(it){
+  const href=it.dataset.href;
+  document.getElementById('lbImg').src=it.dataset.img;
+  document.getElementById('lbImg').alt=it.dataset.cap;
+  document.getElementById('lbCap').textContent=it.dataset.cap;
+  document.getElementById('lbLink').innerHTML=href?`<a href="${esc(href)}" target="_blank" rel="noopener">פתיחת הקישור ↗</a>`
+    :(it.dataset.video?'<span class="note">הסרטון עצמו נמצא בלוח המירו</span>':'');
+  lb.hidden=false;document.getElementById('lbClose').focus();
+}
+function closeLb(){lb.hidden=true}
+document.getElementById('lbClose').onclick=closeLb;
+lb.addEventListener('click',e=>{if(e.target===lb)closeLb()});
+
+// start
+cam.s=clamp(stage.clientWidth/2900,.17,.42);
+render();requestAnimationFrame(tick);
+addEventListener('resize',render);
+</script>

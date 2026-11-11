@@ -58,8 +58,14 @@ body{margin:0;background:var(--board);color:var(--ink);font-family:var(--f-he);o
 .cluster::after{content:"";position:absolute;left:50%;bottom:0;width:0;height:30px;border-left:3px dashed rgba(28,29,34,.45)}
 .sticky{flex:0 0 auto;background:var(--sticky);padding:16px 18px;min-width:120px;max-width:200px;text-align:center;font:500 22px/1.25 var(--f-he);box-shadow:0 8px 14px -8px rgba(0,0,0,.35);transform:rotate(-1.5deg)}
 .sticky.lat{font-family:var(--f-lat);font-weight:600}
-.sticky{cursor:text}
-.sticky[contenteditable="true"]{outline:3px solid var(--accent);outline-offset:3px;user-select:text;-webkit-user-select:text;cursor:text}
+.sticky{cursor:text;white-space:pre-line}
+.fnote .sticky{cursor:grab;min-width:150px;transform:rotate(1deg)}
+.ntools{display:none;justify-content:center;gap:8px;margin-top:10px}
+.fnote.sel .ntools{display:flex}
+.ntools button{all:unset;cursor:pointer;width:40px;height:40px;border-radius:50%;background:var(--paper);box-shadow:0 2px 8px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;font:600 20px/1 var(--f-lat);color:var(--ink);touch-action:none}
+.ntools .nz{cursor:ns-resize}
+.nstem{width:0;border-left:2px dashed var(--ink);opacity:.3;transform-origin:0 0;transform:rotateX(90deg);margin-left:-1px}
+.sticky.editing{outline:3px solid var(--accent);outline-offset:3px;user-select:text;-webkit-user-select:text;cursor:text}
 .fun{font:400 40px/1 var(--f-fun);text-align:center;padding:8px 6px;align-self:center}
 .item{flex:0 0 auto;background:var(--paper);border-radius:8px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.08),0 10px 20px -12px rgba(0,0,0,.35);cursor:pointer;position:relative;transition:transform .15s ease,box-shadow .15s ease;text-decoration:none;color:inherit;display:block}
 .item:hover,.item:focus-visible{transform:translateY(-4px);box-shadow:0 0 0 3px var(--accent),0 16px 26px -14px rgba(0,0,0,.4);outline:none}
@@ -144,6 +150,8 @@ button.t svg{width:20px;height:20px;flex:none}
   <div class="sep"></div>
   <button class="t" id="viewTop" title="מבט מלמעלה, כמו במירו">2D</button>
   <button class="t" id="view3d" title="מבט תלת-ממדי">3D</button>
+  <div class="sep"></div>
+  <button class="t" id="addNote" title="פתק חדש (N)" aria-label="פתק חדש"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14v10l-5 6H5z"/><path d="M14 20v-6h5"/><path d="M9 9h6M12 6v6"/></svg></button>
 </nav>
 
 <div class="chrome" id="zoom" dir="ltr">
@@ -281,10 +289,13 @@ toolPan.onclick=()=>setMode('pan');toolOrbit.onclick=()=>setMode('orbit');
 stage.addEventListener('contextmenu',e=>e.preventDefault());
 stage.addEventListener('pointerdown',e=>{
   pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(e.target.closest('.sticky[contenteditable="true"]'))return;
+  if(e.target.closest('.sticky.editing'))return;
+  const ed=document.querySelector('.sticky.editing');if(ed)ed.blur();
+  const fn=e.target.closest('.fnote');
+  document.querySelectorAll('.fnote.sel').forEach(x=>{if(x!==fn)x.classList.remove('sel')});
   if(pts.size===2){const [a,b]=[...pts.values()];drag={pinch:Math.hypot(a.x-b.x,a.y-b.y),s:cam.s,mx:(a.x+b.x)/2,my:(a.y+b.y)/2};return}
   const orbit=mode==='orbit'||e.button===2||e.shiftKey||e.altKey;
-  drag={x:e.clientX,y:e.clientY,orbit,moved:false,startEl:e.target.closest('.item, .sticky')};
+  drag={x:e.clientX,y:e.clientY,orbit,moved:false,startEl:e.target.closest('.item, .sticky'),note:fn&&!orbit?fn:null,zNote:e.target.closest('.nz')?fn:null};
   target=null;
 });
 stage.addEventListener('pointermove',e=>{
@@ -296,13 +307,18 @@ stage.addEventListener('pointermove',e=>{
   if(!drag.moved&&Math.hypot(dx,dy)<5)return;
   if(!drag.moved){drag.moved=true;stage.setPointerCapture(e.pointerId);stage.classList.add('dragging')}
   drag.x=e.clientX;drag.y=e.clientY;
+  if(drag.zNote){const N=notes.get(drag.zNote.dataset.id);N.z=clamp(N.z-dy/cam.s/Math.max(.35,Math.sin(cam.pitch*Math.PI/180)),0,1700);placeNote(N);return}
+  if(drag.note){const N=notes.get(drag.note.dataset.id);const [gx,gy]=screenToGround(dx,dy);N.x+=gx;N.y+=gy;placeNote(N);return}
   if(drag.orbit){cam.yaw-=dx*.3;cam.pitch=clamp(cam.pitch-dy*.3,0,80)}
   else{const [gx,gy]=screenToGround(dx,dy);cam.cx-=gx;cam.cy-=gy}
   render();
 });
 function endPtr(e){
   pts.delete(e.pointerId);
-  if(drag&&!drag.pinch&&!drag.moved&&drag.startEl&&pts.size===0){drag.startEl.classList.contains('sticky')?editSticky(drag.startEl):openItem(drag.startEl)}
+  if(drag&&drag.moved&&(drag.note||drag.zNote))saveNote(notes.get((drag.note||drag.zNote).dataset.id));
+  if(drag&&!drag.pinch&&!drag.moved&&drag.zNote){}
+  else if(drag&&!drag.pinch&&!drag.moved&&e.target.closest&&e.target.closest('.ndel')){delNote(e.target.closest('.fnote'))}
+  else if(drag&&!drag.pinch&&!drag.moved&&drag.startEl&&pts.size===0){drag.startEl.classList.contains('sticky')?editSticky(drag.startEl):openItem(drag.startEl)}
   if(pts.size===0){drag=null;stage.classList.remove('dragging')}
   else if(drag&&drag.pinch){drag=null}
 }
@@ -327,6 +343,7 @@ addEventListener('keydown',e=>{
   if(k==='h'||k==='H')setMode('pan');else if(k==='r'||k==='R')setMode('orbit');
   else if(k==='ArrowLeft'){go({cx:cam.cx-step})}else if(k==='ArrowRight'){go({cx:cam.cx+step})}
   else if(k==='ArrowUp'){go({cy:cam.cy-step})}else if(k==='ArrowDown'){go({cy:cam.cy+step})}
+  else if(k==='n'||k==='N'){addNote()}
   else if(k==='+'||k==='='){go({s:clamp(cam.s*1.25,.12,2.4)})}else if(k==='-'){go({s:clamp(cam.s/1.25,.12,2.4)})}
 });
 
@@ -339,38 +356,90 @@ document.getElementById('view3d').onclick=()=>go({pitch:56,yaw:-22});
 const panel=document.getElementById('panel'),pt=document.getElementById('panelToggle');
 pt.onclick=()=>{const o=panel.classList.toggle('open');pt.setAttribute('aria-expanded',o)};
 
-// editable sticky notes: tap to edit; saved to the artifact's shared db (fallback: this browser only)
+// editable sticky notes: tap to edit, Enter = new line, tap outside to save.
+// Saved to the artifact's shared db; fallback: this browser only.
 let db=null;
-const LS='territories-stickies';
-const lsGet=()=>{try{return JSON.parse(localStorage.getItem(LS)||'{}')}catch(e){return {}}};
-const lsSet=(k,t)=>{try{const o=lsGet();o[k]=t;localStorage.setItem(LS,JSON.stringify(o))}catch(e){}};
+const lsGet=k=>{try{return JSON.parse(localStorage.getItem(k)||'{}')}catch(e){return {}}};
+const lsPut=(k,f)=>{try{const o=lsGet(k);f(o);localStorage.setItem(k,JSON.stringify(o))}catch(e){}};
+const LS='territories-stickies', LN='territories-notes';
+const txt=n=>n.innerText.replace(/\r/g,'').replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim();
 function setSticky(k,t){const n=document.querySelector(`.sticky[data-key="${k}"]`);if(!n||n.isContentEditable||typeof t!=='string')return;n.textContent=t;syncJump(n.dataset.cluster)}
-function syncJump(cid){const b=jump.querySelector(`button[data-cluster="${cid}"]`);if(b)b.textContent=[...document.querySelectorAll(`.sticky[data-cluster="${cid}"]`)].map(n=>n.textContent.trim()).filter(Boolean).join(' · ')}
-Object.entries(lsGet()).forEach(([k,t])=>setSticky(k,t));
+function syncJump(cid){const b=jump.querySelector(`button[data-cluster="${cid}"]`);if(b)b.textContent=[...document.querySelectorAll(`.sticky[data-cluster="${cid}"]`)].map(n=>n.textContent.replace(/\s+/g,' ').trim()).filter(Boolean).join(' · ')}
+Object.entries(lsGet(LS)).forEach(([k,t])=>setSticky(k,t));
 function editSticky(n){
   if(n.isContentEditable)return;
-  n.dataset.before=n.textContent;n.contentEditable='true';n.focus();
+  n.dataset.before=n.textContent;
+  n.contentEditable='plaintext-only';if(n.contentEditable!=='plaintext-only')n.contentEditable='true';
+  n.classList.add('editing');n.focus();
+  const fn=n.closest('.fnote');if(fn)fn.classList.add('sel');
   const sel=getSelection(),rg=document.createRange();rg.selectNodeContents(n);rg.collapse(false);sel.removeAllRanges();sel.addRange(rg);
 }
 stage.addEventListener('keydown',e=>{
-  const n=e.target.closest&&e.target.closest('.sticky[contenteditable="true"]');if(!n)return;
-  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();n.blur()}
-  else if(e.key==='Escape'){n.textContent=n.dataset.before;n.blur()}
+  const n=e.target.closest&&e.target.closest('.sticky.editing');if(!n)return;
+  if(e.key==='Escape'){n.textContent=n.dataset.before;n.blur()}
+  else if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();n.blur()}
 });
 stage.addEventListener('focusout',e=>{
-  const n=e.target.closest&&e.target.closest('.sticky[contenteditable="true"]');if(!n)return;
-  n.contentEditable='false';
-  let t=n.textContent.replace(/\s+/g,' ').trim();if(!t)t=n.dataset.before;n.textContent=t;
+  const n=e.target.closest&&e.target.closest('.sticky.editing');if(!n)return;
+  n.contentEditable='false';n.classList.remove('editing');
+  let t=txt(n);
+  const fn=n.closest('.fnote');
+  if(fn){const N=notes.get(fn.dataset.id);if(!t){removeNote(N.id,true);return}n.textContent=t;if(t!==N.text){N.text=t;saveNote(N)}return}
+  if(!t)t=n.dataset.before;n.textContent=t;
   syncJump(n.dataset.cluster);
   if(t===n.dataset.before)return;
-  lsSet(n.dataset.key,t);
+  lsPut(LS,o=>{o[n.dataset.key]=t});
   if(db)db.doc('stickies/'+n.dataset.key).set({text:t,at:Date.now()}).catch(()=>{});
 });
+
+// free notes: added with the note button, dragged on the floor plane, ↕ changes height
+const notes=new Map();
+function placeNote(N){
+  N.el.style.cssText=`--x:${N.x}px;--y:${N.y}px;--z:${N.z}px`;
+  N.stem.style.transform=`translate3d(${N.x}px,${N.y}px,0)`;N.stem.firstChild.style.height=N.z+'px';
+}
+function upsertNote(N){
+  let cur=notes.get(N.id);
+  if(!cur){
+    const el=el_('div','p bb fnote');el.dataset.id=N.id;
+    el.innerHTML='<div class="inner"><div class="nwrap"><div class="sticky" dir="auto"></div><div class="ntools" dir="ltr"><button class="nz" aria-label="גובה" title="גרירה: שינוי גובה">↕</button><button class="ndel" aria-label="מחיקה" title="מחיקת הפתק">✕</button></div></div></div>';
+    const stem=el_('div','p');stem.innerHTML='<div class="nstem"></div>';
+    world.append(stem,el);cur={id:N.id,el,stem,x:0,y:0,z:0,text:''};notes.set(N.id,cur);
+  }
+  const busy=(drag&&(drag.note===cur.el||drag.zNote===cur.el))||cur.el.querySelector('.editing');
+  if(!busy){Object.assign(cur,{x:+N.x||0,y:+N.y||0,z:+N.z||0,text:String(N.text||'')});cur.el.querySelector('.sticky').textContent=cur.text;placeNote(cur)}
+  return cur;
+}
+const el_=(t,c)=>{const e=document.createElement(t);e.className=c;return e};
+function saveNote(N){
+  if(!N)return;
+  const d={x:Math.round(N.x),y:Math.round(N.y),z:Math.round(N.z),text:N.text,at:Date.now()};
+  if(!N.text)return;
+  lsPut(LN,o=>{o[N.id]=d});
+  if(db)db.doc('notes/'+N.id).set(d).catch(()=>{});
+}
+function removeNote(id,save){
+  const N=notes.get(id);if(!N)return;N.el.remove();N.stem.remove();notes.delete(id);
+  if(save){lsPut(LN,o=>{delete o[id]});if(db)db.doc('notes/'+id).delete().catch(()=>{})}
+}
+function delNote(fn){const N=notes.get(fn.dataset.id);if(N&&(!N.text||confirm('למחוק את הפתק?')))removeNote(N.id,true)}
+function addNote(){
+  const id='n'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  const N=upsertNote({id,x:cam.cx+(Math.random()-.5)*80,y:cam.cy+(Math.random()-.5)*80,z:clamp(cam.cz,60,1500),text:''});
+  editSticky(N.el.querySelector('.sticky'));
+}
+document.getElementById('addNote').onclick=addNote;
+Object.entries(lsGet(LN)).forEach(([id,d])=>upsertNote({id,...d}));
+
 (async()=>{
   for(let i=0;i<20&&!window.claude;i++)await new Promise(r=>setTimeout(r,250));
   try{db=window.claude?await window.claude.use('db'):null}catch(e){db=null}
   if(!db)return;
   db.collection('stickies').onSnapshot(q=>q.docs.forEach(d=>{const v=d.data();if(v)setSticky(d.id,v.text)}),()=>{});
+  db.collection('notes').onSnapshot(q=>q.docChanges().forEach(ch=>{
+    if(ch.type==='removed')removeNote(ch.doc.id,false);
+    else{const v=ch.doc.data();if(v)upsertNote({id:ch.doc.id,...v})}
+  }),()=>{});
 })();
 
 // lightbox

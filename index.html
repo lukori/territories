@@ -58,6 +58,8 @@ body{margin:0;background:var(--board);color:var(--ink);font-family:var(--f-he);o
 .cluster::after{content:"";position:absolute;left:50%;bottom:0;width:0;height:30px;border-left:3px dashed rgba(28,29,34,.45)}
 .sticky{flex:0 0 auto;background:var(--sticky);padding:16px 18px;min-width:120px;max-width:200px;text-align:center;font:500 22px/1.25 var(--f-he);box-shadow:0 8px 14px -8px rgba(0,0,0,.35);transform:rotate(-1.5deg)}
 .sticky.lat{font-family:var(--f-lat);font-weight:600}
+.sticky{cursor:text}
+.sticky[contenteditable="true"]{outline:3px solid var(--accent);outline-offset:3px;user-select:text;-webkit-user-select:text;cursor:text}
 .fun{font:400 40px/1 var(--f-fun);text-align:center;padding:8px 6px;align-self:center}
 .item{flex:0 0 auto;background:var(--paper);border-radius:8px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.08),0 10px 20px -12px rgba(0,0,0,.35);cursor:pointer;position:relative;transition:transform .15s ease,box-shadow .15s ease;text-decoration:none;color:inherit;display:block}
 .item:hover,.item:focus-visible{transform:translateY(-4px);box-shadow:0 0 0 3px var(--accent),0 16px 26px -14px rgba(0,0,0,.4);outline:none}
@@ -235,10 +237,10 @@ CLUSTERS.forEach(c=>{
   const ft=place(el('div','p'),X,Y,1);ft.innerHTML=`<div class="foot" style="background:${p.c}"></div>`;world.append(ft);
   const st=place(el('div','p'),X,Y,0);st.innerHTML=`<div class="stem" style="height:${p.z}px"></div>`;world.append(st);
   const b=el('div','p bb');b.style.cssText+=`--x:${X}px;--y:${Y}px;--z:${p.z}px`;
-  const stickies=c.label.split(' · ').map(s=>`<div class="sticky${c.lat?' lat':''}" dir="auto">${esc(s)}</div>`).join('');
+  const stickies=c.label.split(' · ').map((s,i)=>`<div class="sticky${c.lat?' lat':''}" dir="auto" data-key="${c.id}-${i}" data-cluster="${c.id}" data-orig="${esc(s)}">${esc(s)}</div>`).join('');
   b.innerHTML=`<div class="inner"><div class="cluster" dir="rtl">${stickies}${c.items.map(itemHTML).join('')}</div></div>`;
   world.append(b);
-  const j=el('button');j.textContent=c.label;j.onclick=()=>flyTo(X,Y,p.z);jump.append(j);
+  const j=el('button');j.dataset.cluster=c.id;j.textContent=c.label;j.onclick=()=>flyTo(X,Y,p.z);jump.append(j);
 });
 
 // ---------- camera ----------
@@ -279,9 +281,10 @@ toolPan.onclick=()=>setMode('pan');toolOrbit.onclick=()=>setMode('orbit');
 stage.addEventListener('contextmenu',e=>e.preventDefault());
 stage.addEventListener('pointerdown',e=>{
   pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(e.target.closest('.sticky[contenteditable="true"]'))return;
   if(pts.size===2){const [a,b]=[...pts.values()];drag={pinch:Math.hypot(a.x-b.x,a.y-b.y),s:cam.s,mx:(a.x+b.x)/2,my:(a.y+b.y)/2};return}
   const orbit=mode==='orbit'||e.button===2||e.shiftKey||e.altKey;
-  drag={x:e.clientX,y:e.clientY,orbit,moved:false,startEl:e.target.closest('.item')};
+  drag={x:e.clientX,y:e.clientY,orbit,moved:false,startEl:e.target.closest('.item, .sticky')};
   target=null;
 });
 stage.addEventListener('pointermove',e=>{
@@ -299,7 +302,7 @@ stage.addEventListener('pointermove',e=>{
 });
 function endPtr(e){
   pts.delete(e.pointerId);
-  if(drag&&!drag.pinch&&!drag.moved&&drag.startEl&&pts.size===0)openItem(drag.startEl);
+  if(drag&&!drag.pinch&&!drag.moved&&drag.startEl&&pts.size===0){drag.startEl.classList.contains('sticky')?editSticky(drag.startEl):openItem(drag.startEl)}
   if(pts.size===0){drag=null;stage.classList.remove('dragging')}
   else if(drag&&drag.pinch){drag=null}
 }
@@ -318,6 +321,7 @@ stage.addEventListener('wheel',e=>{
 // keyboard: open focused item, arrows pan, keys switch tools
 stage.addEventListener('keydown',e=>{const it=e.target.closest&&e.target.closest('.item');if(it&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openItem(it)}});
 addEventListener('keydown',e=>{
+  if(e.target.isContentEditable)return;
   if(!lb.hidden){if(e.key==='Escape')closeLb();return}
   const k=e.key, step=60/cam.s;
   if(k==='h'||k==='H')setMode('pan');else if(k==='r'||k==='R')setMode('orbit');
@@ -334,6 +338,40 @@ document.getElementById('viewTop').onclick=()=>go({pitch:0,yaw:0});
 document.getElementById('view3d').onclick=()=>go({pitch:56,yaw:-22});
 const panel=document.getElementById('panel'),pt=document.getElementById('panelToggle');
 pt.onclick=()=>{const o=panel.classList.toggle('open');pt.setAttribute('aria-expanded',o)};
+
+// editable sticky notes: tap to edit; saved to the artifact's shared db (fallback: this browser only)
+let db=null;
+const LS='territories-stickies';
+const lsGet=()=>{try{return JSON.parse(localStorage.getItem(LS)||'{}')}catch(e){return {}}};
+const lsSet=(k,t)=>{try{const o=lsGet();o[k]=t;localStorage.setItem(LS,JSON.stringify(o))}catch(e){}};
+function setSticky(k,t){const n=document.querySelector(`.sticky[data-key="${k}"]`);if(!n||n.isContentEditable||typeof t!=='string')return;n.textContent=t;syncJump(n.dataset.cluster)}
+function syncJump(cid){const b=jump.querySelector(`button[data-cluster="${cid}"]`);if(b)b.textContent=[...document.querySelectorAll(`.sticky[data-cluster="${cid}"]`)].map(n=>n.textContent.trim()).filter(Boolean).join(' · ')}
+Object.entries(lsGet()).forEach(([k,t])=>setSticky(k,t));
+function editSticky(n){
+  if(n.isContentEditable)return;
+  n.dataset.before=n.textContent;n.contentEditable='true';n.focus();
+  const sel=getSelection(),rg=document.createRange();rg.selectNodeContents(n);rg.collapse(false);sel.removeAllRanges();sel.addRange(rg);
+}
+stage.addEventListener('keydown',e=>{
+  const n=e.target.closest&&e.target.closest('.sticky[contenteditable="true"]');if(!n)return;
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();n.blur()}
+  else if(e.key==='Escape'){n.textContent=n.dataset.before;n.blur()}
+});
+stage.addEventListener('focusout',e=>{
+  const n=e.target.closest&&e.target.closest('.sticky[contenteditable="true"]');if(!n)return;
+  n.contentEditable='false';
+  let t=n.textContent.replace(/\s+/g,' ').trim();if(!t)t=n.dataset.before;n.textContent=t;
+  syncJump(n.dataset.cluster);
+  if(t===n.dataset.before)return;
+  lsSet(n.dataset.key,t);
+  if(db)db.doc('stickies/'+n.dataset.key).set({text:t,at:Date.now()}).catch(()=>{});
+});
+(async()=>{
+  for(let i=0;i<20&&!window.claude;i++)await new Promise(r=>setTimeout(r,250));
+  try{db=window.claude?await window.claude.use('db'):null}catch(e){db=null}
+  if(!db)return;
+  db.collection('stickies').onSnapshot(q=>q.docs.forEach(d=>{const v=d.data();if(v)setSticky(d.id,v.text)}),()=>{});
+})();
 
 // lightbox
 const lb=document.getElementById('lb');
